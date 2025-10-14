@@ -9,4 +9,4 @@ matplotlib>=3.7
 pandas>=2.0
 nbmake>=1.5
 importnb>=2023.11
-sklearn
+scikit-learn
