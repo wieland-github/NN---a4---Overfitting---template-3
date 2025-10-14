@@ -26,7 +26,7 @@ INCLUDE_PATTERNS = [
 
 EXCLUDE_DEMO_TOKENS = [
     "plt.show(", "plt.plot(", "plt.scatter(", "Axes3D",
-    "plot_surface(", "display(", "model =", "print(", "fit(", "train("
+    "plot_surface(", "display(", "model =", "print("
 ]
 
 def _load_code_cells_from_notebook(path):
