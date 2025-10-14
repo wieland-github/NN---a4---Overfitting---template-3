@@ -1,0 +1,11 @@
+# Test-Framework
+pytest>=7.2
+
+# Numerik
+numpy>=1.24
+
+# (Optional) häufig in Notebooks genutzt – kann bleiben oder entfernt werden
+matplotlib>=3.7
+pandas>=2.0
+nbmake>=1.5
+importnb>=2023.11

@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "tests": [
+    {
+      "name": "A4 · generate_sine_data · Form & Range",
+      "setup": "pip install -r requirements.txt",
+      "run": "pytest -q test_overfitting_todos.py::test_generate_sine_data_shapes_and_range",
+      "timeout": 300,
+      "points": 10
+    },
+    {
+      "name": "A4 · generate_sine_data · Noise-Statistik",
+      "run": "pytest -q test_overfitting_todos.py::test_generate_sine_data_noise_statistics",
+      "timeout": 300,
+      "points": 10
+    },
+    {
+      "name": "A4 · PolynomialGD · predict() forward pass",
+      "run": "pytest -q test_overfitting_todos.py::test_poly_predict_forward_pass",
+      "timeout": 300,
+      "points": 10
+    },
+    {
+      "name": "A4 · PolynomialGD · Gradient korrekt (numerischer Check)",
+      "run": "pytest -q test_overfitting_todos.py::test_poly_compute_gradient_matches_numeric",
+      "timeout": 600,
+      "points": 35
+    },
+    {
+      "name": "A4 · PolynomialGD · Lernt & MSE sinkt",
+      "run": "pytest -q test_overfitting_todos.py::test_poly_fit_learns_and_mse_drops",
+      "timeout": 900,
+      "points": 35
+    }
+  ]
+}
+

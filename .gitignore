@@ -1,0 +1,21 @@
+# Jupyter Notebook Checkpoints
+.ipynb_checkpoints/
+
+# Python Cache
+__pycache__/
+*.pyc
+
+# Virtual Environments
+.env/
+.venv/
+env/
+venv/
+ENV/
+
+# IDE / Editor Settings
+.vscode/
+.idea/
+
+# System Files
+.DS_Store
+Thumbs.db
