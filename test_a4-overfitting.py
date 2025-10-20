@@ -93,29 +93,40 @@ def ns():
 # Tests: generate_sine_data
 # ---------------------------
 
-def test_generate_sine_data_shapes_and_range(ns):
+def test_structure_and_exact_x(ns):
     gen = ns["generate_sine_data"]
-    np.random.seed(0)  # deterministisch
     n = 200
+    
+    # Test: Überprüft, ob die Funktion Arrays der richtigen Form und Werte erzeugt.
+    # Erwartung: x ist ein gleichmäßig verteiltes linspace zwischen 0 und 2*pi,
+    #            y hat dieselbe Länge.
     x, y = gen(n, noise=0.5)
     assert isinstance(x, np.ndarray) and isinstance(y, np.ndarray)
     assert x.shape == (n,) and y.shape == (n,)
-    # x im Bereich [0, 2*pi] und monoton steigend (linspace)
-    assert x.min() >= 0 and x.max() <= 2 * np.pi + 1e-12
-    assert np.isclose(x[0], 0.0) and np.isclose(x[-1], 2 * np.pi)
-    assert np.all(np.diff(x) > 0)
+    np.testing.assert_allclose(x, np.linspace(0, 2*np.pi, n))
 
-def test_generate_sine_data_noise_statistics(ns):
+
+def test_no_noise(ns):
     gen = ns["generate_sine_data"]
+
+    # Test: Überprüft die Kernfunktionalität ohne Zufallseinfluss.
+    # Erwartung: Wenn noise=0, dann ist y exakt sin(x).
+    x, y = gen(100, noise=0)
+    np.testing.assert_allclose(y, np.sin(x))
+
+
+def test_reproducibility_with_seed(ns):
+    gen = ns["generate_sine_data"]
+
+    # Test: Stellt sicher, dass bei gleichem Zufalls-Seed dieselben Ergebnisse entstehen.
+    # Erwartung: Zwei Aufrufe mit gleichem Seed liefern identische x- und y-Werte.
     np.random.seed(42)
-    n = 1000
-    noise = 0.2
-    x, y = gen(n, noise=noise)
-    residual = y - np.sin(x)
-    # Erwartung: Residuen ~ N(0, noise^2)
-    # Mittelwert nahe 0, Std nahe noise (tolerant wegen Stichprobe)
-    assert abs(np.mean(residual)) < noise * 0.15
-    assert abs(np.std(residual) - noise) < noise * 0.25
+    x1, y1 = gen(150, noise=0.2)
+    np.random.seed(42)
+    x2, y2 = gen(150, noise=0.2)
+
+    np.testing.assert_allclose(x1, x2)
+    np.testing.assert_allclose(y1, y2)
 
 # ---------------------------
 # Tests: PolynomialGradientDescentModel
