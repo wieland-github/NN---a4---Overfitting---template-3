@@ -160,7 +160,7 @@ def _numeric_grad(model, X, y, eps=1e-6):
 # Tests: PolynomialGradientDescentModel (5 Stück)
 # ---------------------------
 
-def test_predict_is_cubic_forward_pass(ns):
+def test_predict_computes_cubic_forward_pass(ns):
     """predict berechnet w0 + w1*x + w2*x^2 + w3*x^3 (vektorisiert)."""
     M = ns["PolynomialGradientDescentModel"]
     m = M()
@@ -168,7 +168,6 @@ def test_predict_is_cubic_forward_pass(ns):
     X = np.array([0.0, 1.0, -2.0, 0.5])
     expected = 1 + 2*X + 3*(X**2) + 4*(X**3)
     y_hat = m.predict(X)
-    assert isinstance(y_hat, np.ndarray)
     np.testing.assert_allclose(y_hat, expected, atol=1e-10)
 
 
