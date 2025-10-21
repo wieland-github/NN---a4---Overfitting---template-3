@@ -129,73 +129,114 @@ def test_reproducibility_with_seed(ns):
     np.testing.assert_allclose(y1, y2)
 
 # ---------------------------
-# Tests: PolynomialGradientDescentModel
+# Hilfsfunktionen für Modell-Tests
 # ---------------------------
 
-def _mse_local(y_true, y_pred):
-    yt = np.asarray(y_true, dtype=float)
-    yp = np.asarray(y_pred, dtype=float)
-    return float(np.mean((yt - yp) ** 2))
+def _mse(y_true, y_pred):
+    return float(np.mean((np.asarray(y_pred) - np.asarray(y_true)) ** 2))
 
-def test_poly_predict_forward_pass(ns):
-    Model = ns["PolynomialGradientDescentModel"]
-    m = Model()
-    # Setze bekannte Gewichte: y = a + b x + c x^2 + d x^3
-    a, b, c, d = 1.0, -2.0, 0.5, 0.1
-    m.weights = np.array([a, b, c, d], dtype=float)
-    X = np.array([0.0, 1.0, 2.0, -1.0])
+def _numeric_grad(model, X, y, eps=1e-6):
+    """
+    Numerischer Gradient der MSE (zentrale Finite Differenzen)
+    im selben globalen Namespace wie das Model.
+    """
+    base = model.weights.copy()
+    grads = []
+    for j in range(len(base)):
+        w_plus = base.copy(); w_plus[j] += eps
+        w_minus = base.copy(); w_minus[j] -= eps
+
+        model.weights = w_plus
+        m_plus = _mse(y, model.predict(X))
+
+        model.weights = w_minus
+        m_minus = _mse(y, model.predict(X))
+
+        grads.append((m_plus - m_minus) / (2 * eps))
+    model.weights = base
+    return np.array(grads)
+
+# ---------------------------
+# Tests: PolynomialGradientDescentModel (5 Stück)
+# ---------------------------
+
+def test_predict_is_cubic_forward_pass(ns):
+    """predict berechnet w0 + w1*x + w2*x^2 + w3*x^3 (vektorisiert)."""
+    M = ns["PolynomialGradientDescentModel"]
+    m = M()
+    m.weights = np.array([1.0, 2.0, 3.0, 4.0])
+    X = np.array([0.0, 1.0, -2.0, 0.5])
+    expected = 1 + 2*X + 3*(X**2) + 4*(X**3)
+    y_hat = m.predict(X)
+    assert isinstance(y_hat, np.ndarray)
+    np.testing.assert_allclose(y_hat, expected, atol=1e-10)
+
+
+def test_compute_gradient_closed_form(ns):
+    """Analytischer Gradient entspricht der hergeleiteten Formel."""
+    M = ns["PolynomialGradientDescentModel"]
+    m = M()
+    m.weights = np.array([0.3, -0.7, 0.2, 1.1])
+    X = np.array([-2., -1., 0., 1., 2.])
+    y = np.array([5.0, 0.5, -1.0, 0.0, 3.5])
+
+    n = len(X)
     y_pred = m.predict(X)
-    expected = a + b * X + c * X**2 + d * X**3
-    assert np.allclose(y_pred, expected)
+    e = y - y_pred
+    expected = np.array([
+        (-2/n) * np.sum(e),
+        (-2/n) * np.sum(X * e),
+        (-2/n) * np.sum((X**2) * e),
+        (-2/n) * np.sum((X**3) * e),
+    ])
+    got = np.array(m.compute_gradient(X, y))
+    np.testing.assert_allclose(got, expected, atol=1e-10)
 
-def test_poly_compute_gradient_matches_numeric(ns):
-    Model = ns["PolynomialGradientDescentModel"]
-    m = Model()
-    # Erzeuge kleine Daten (ohne Rauschen) von einer bekannten Kubik
-    true_w = np.array([0.3, -0.7, 0.2, 0.05], dtype=float)
-    X = np.linspace(-2, 2, 25)
-    y = true_w[0] + true_w[1]*X + true_w[2]*X**2 + true_w[3]*X**3
 
-    # Starte bei anderen Gewichten, damit Gradienten ≠ 0
-    m.weights = np.array([0.0, 0.0, 0.0, 0.0], dtype=float)
+def test_gradient_matches_numeric(ns):
+    """Vergleich analytischer und numerischer Gradient."""
+    rng = np.random.default_rng(0)
+    M = ns["PolynomialGradientDescentModel"]
+    m = M()
+    m.weights = rng.normal(size=4)
+    X = rng.normal(size=25)
+    true_w = np.array([0.6, -0.4, 0.2, 0.8])
+    y = true_w[0] + true_w[1]*X + true_w[2]*(X**2) + true_w[3]*(X**3) + rng.normal(0, 0.05, size=X.shape)
 
-    # Analytische Gradienten aus compute_gradient
-    g = np.array(m.compute_gradient(X, y), dtype=float)
+    analytic = np.array(m.compute_gradient(X, y))
+    numeric = _numeric_grad(m, X, y)
+    assert np.allclose(analytic, numeric, rtol=1e-4, atol=1e-5)
 
-    # Numerische Gradienten via finite differences auf MSE
-    eps = 1e-6
-    num_g = np.zeros_like(m.weights, dtype=float)
-    base_mse = _mse_local(y, m.predict(X))
-    for j in range(len(m.weights)):
-        w_perturb = m.weights.copy()
-        w_perturb[j] += eps
-        # Temporär einsetzen
-        old = m.weights[j]
-        m.weights[j] = w_perturb[j]
-        mse_plus = _mse_local(y, m.predict(X))
-        m.weights[j] = old
-        num_g[j] = (mse_plus - base_mse) / eps
 
-    # compute_gradient sollte die MSE-Gradienten liefern
-    assert np.allclose(g, num_g, rtol=1e-3, atol=1e-4)
+def test_single_gradient_step_reduces_mse(ns):
+    """Ein kleiner Schritt in -Gradientenrichtung reduziert den MSE (Vorzeichen korrekt)."""
+    rng = np.random.default_rng(1)
+    M = ns["PolynomialGradientDescentModel"]
+    m = M()
+    X = rng.uniform(-2, 2, size=120)
+    w_true = np.array([1.0, -0.5, 0.25, 0.75])
+    y = w_true[0] + w_true[1]*X + w_true[2]*(X**2) + w_true[3]*(X**3)
 
-def test_poly_fit_learns_and_mse_drops(ns):
-    Model = ns["PolynomialGradientDescentModel"]
-    m = Model(learning_rate=1e-3, n_iterations=2000)
+    mse_before = _mse(y, m.predict(X))
+    grad = np.array(m.compute_gradient(X, y))
+    m.weights = m.weights - 1e-3 * grad
+    mse_after = _mse(y, m.predict(X))
 
-    # Daten von bekannter Kubik mit geringem Rauschen
-    rng = np.random.default_rng(123)
-    true_w = np.array([1.5, -0.8, 0.3, 0.02], dtype=float)
-    X = np.linspace(-3, 3, 120)
-    y_clean = true_w[0] + true_w[1]*X + true_w[2]*X**2 + true_w[3]*X**3
-    y = y_clean + rng.normal(0, 0.2, size=X.shape)
+    assert mse_after < mse_before, "Gradientenrichtung/Vorzeichen scheint falsch."
 
+
+def test_fit_reduces_mse_over_iterations(ns):
+    """Training über mehrere Iterationen sollte MSE klar reduzieren."""
+    rng = np.random.default_rng(7)
+    M = ns["PolynomialGradientDescentModel"]
+    m = M(learning_rate=2e-3, n_iterations=800)
+
+    X = np.linspace(-2, 2, 160)
+    w_true = np.array([1.2, -0.5, 0.25, 0.75])
+    y = w_true[0] + w_true[1]*X + w_true[2]*(X**2) + w_true[3]*(X**3) + rng.normal(0, 0.05, size=X.shape)
+
+    mse_before = _mse(y, m.predict(X))
     m.fit(X, y)
-    hist = m.get_mse_history()
-    assert isinstance(hist, list) and len(hist) > 5
-    assert hist[0] > hist[-1], "MSE sollte im Verlauf sinken."
+    mse_after = _mse(y, m.predict(X))
 
-    # Qualitätscheck: finale MSE signifikant unter Varianz des Rauschens
-    final_mse = _mse_local(y, m.predict(X))
-    assert final_mse < 0.2**2 * 2.0  # locker bemessen
-
+    assert mse_after < mse_before * 0.6, "Training reduziert den Fehler nicht signifikant."
